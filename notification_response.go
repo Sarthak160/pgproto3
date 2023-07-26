@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 
-	"github.com/jackc/pgio"
+	"github.com/sarthak160/postgres-wire-parser/internal/pgio"
 )
 
 type NotificationResponse struct {
@@ -21,6 +21,10 @@ func (*NotificationResponse) Backend() {}
 // type identifier and 4 byte message length.
 func (dst *NotificationResponse) Decode(src []byte) error {
 	buf := bytes.NewBuffer(src)
+
+	if buf.Len() < 4 {
+		return &invalidMessageFormatErr{messageType: "NotificationResponse", details: "too short"}
+	}
 
 	pid := binary.BigEndian.Uint32(buf.Next(4))
 

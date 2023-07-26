@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/jackc/pgproto3/v2"
+	"github.com/sarthak160/postgres-wire-parser/pgproto3"
 )
 
 type PgFortuneBackend struct {
@@ -14,7 +14,7 @@ type PgFortuneBackend struct {
 }
 
 func NewPgFortuneBackend(conn net.Conn, responder func() ([]byte, error)) *PgFortuneBackend {
-	backend := pgproto3.NewBackend(pgproto3.NewChunkReader(conn), conn)
+	backend := pgproto3.NewBackend(conn, conn)
 
 	connHandler := &PgFortuneBackend{
 		backend:   backend,

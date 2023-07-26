@@ -4,7 +4,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/jackc/pgproto3/v2"
+	"github.com/sarthak160/postgres-wire-parser/pgproto3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +38,7 @@ func TestFrontendReceiveInterrupted(t *testing.T) {
 	server := &interruptReader{}
 	server.push([]byte{'Z', 0, 0, 0, 5})
 
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(server), nil)
+	frontend := pgproto3.NewFrontend(server, nil)
 
 	msg, err := frontend.Receive()
 	if err == nil {
@@ -65,7 +65,7 @@ func TestFrontendReceiveUnexpectedEOF(t *testing.T) {
 	server := &interruptReader{}
 	server.push([]byte{'Z', 0, 0, 0, 5})
 
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(server), nil)
+	frontend := pgproto3.NewFrontend(server, nil)
 
 	msg, err := frontend.Receive()
 	if err == nil {
@@ -109,7 +109,7 @@ func TestErrorResponse(t *testing.T) {
 	server := &interruptReader{}
 	server.push(raw)
 
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(server), nil)
+	frontend := pgproto3.NewFrontend(server, nil)
 
 	got, err := frontend.Receive()
 	require.NoError(t, err)

@@ -2,7 +2,8 @@ package pgproto3
 
 import (
 	"encoding/binary"
-	"github.com/jackc/pgio"
+
+	"github.com/sarthak160/postgres-wire-parser/internal/pgio"
 )
 
 type FunctionCall struct {

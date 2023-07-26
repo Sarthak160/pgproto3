@@ -1,16 +1,22 @@
 package pgproto3
 
 import (
+	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 )
 
 // Backend acts as a server for the PostgreSQL wire protocol version 3.
 type Backend struct {
-	cr ChunkReader
+	cr *chunkReader
 	w  io.Writer
+
+	// tracer is used to trace messages when Send or Receive is called. This means an outbound message is traced
+	// before it is actually transmitted (i.e. before Flush).
+	tracer *tracer
+
+	wbuf []byte
 
 	// Frontend message flyweights
 	bind           Bind
@@ -43,20 +49,59 @@ const (
 )
 
 // NewBackend creates a new Backend.
-func NewBackend(cr ChunkReader, w io.Writer) *Backend {
+func NewBackend(r io.Reader, w io.Writer) *Backend {
+	cr := newChunkReader(r, 0)
 	return &Backend{cr: cr, w: w}
 }
 
-// Send sends a message to the frontend.
-func (b *Backend) Send(msg BackendMessage) error {
-	_, err := b.w.Write(msg.Encode(nil))
-	return err
+// Send sends a message to the frontend (i.e. the client). The message is not guaranteed to be written until Flush is
+// called.
+func (b *Backend) Send(msg BackendMessage) {
+	prevLen := len(b.wbuf)
+	b.wbuf = msg.Encode(b.wbuf)
+	if b.tracer != nil {
+		b.tracer.traceMessage('B', int32(len(b.wbuf)-prevLen), msg)
+	}
+}
+
+// Flush writes any pending messages to the frontend (i.e. the client).
+func (b *Backend) Flush() error {
+	n, err := b.w.Write(b.wbuf)
+
+	const maxLen = 1024
+	if len(b.wbuf) > maxLen {
+		b.wbuf = make([]byte, 0, maxLen)
+	} else {
+		b.wbuf = b.wbuf[:0]
+	}
+
+	if err != nil {
+		return &writeError{err: err, safeToRetry: n == 0}
+	}
+
+	return nil
+}
+
+// Trace starts tracing the message traffic to w. It writes in a similar format to that produced by the libpq function
+// PQtrace.
+func (b *Backend) Trace(w io.Writer, options TracerOptions) {
+	b.tracer = &tracer{
+		w:             w,
+		buf:           &bytes.Buffer{},
+		TracerOptions: options,
+	}
+}
+
+// Untrace stops tracing.
+func (b *Backend) Untrace() {
+	b.tracer = nil
 }
 
 // ReceiveStartupMessage receives the initial connection message. This method is used of the normal Receive method
 // because the initial connection message is "special" and does not include the message type as the first byte. This
 // will return either a StartupMessage, SSLRequest, GSSEncRequest, or CancelRequest.
 func (b *Backend) ReceiveStartupMessage() (FrontendMessage, error) {
+	println("backend.go: Backend.ReceiveStartupMessage()")
 	buf, err := b.cr.Next(4)
 	if err != nil {
 		return nil, err
@@ -106,6 +151,7 @@ func (b *Backend) ReceiveStartupMessage() (FrontendMessage, error) {
 
 // Receive receives a message from the frontend. The returned message is only valid until the next call to Receive.
 func (b *Backend) Receive() (FrontendMessage, error) {
+	println("backend.go: Backend.Receive()")
 	if !b.partialMsg {
 		header, err := b.cr.Next(5)
 		if err != nil {
@@ -115,9 +161,6 @@ func (b *Backend) Receive() (FrontendMessage, error) {
 		b.msgType = header[0]
 		b.bodyLen = int(binary.BigEndian.Uint32(header[1:])) - 4
 		b.partialMsg = true
-		if b.bodyLen < 0 {
-			return nil, errors.New("invalid message with negative body length received")
-		}
 	}
 
 	var msg FrontendMessage
@@ -155,7 +198,7 @@ func (b *Backend) Receive() (FrontendMessage, error) {
 		case AuthTypeCleartextPassword, AuthTypeMD5Password:
 			fallthrough
 		default:
-			// to maintain backwards compatability
+			// to maintain backwards compatibility
 			msg = &PasswordMessage{}
 		}
 	case 'Q':
@@ -176,7 +219,15 @@ func (b *Backend) Receive() (FrontendMessage, error) {
 	b.partialMsg = false
 
 	err = msg.Decode(msgBody)
-	return msg, err
+	if err != nil {
+		return nil, err
+	}
+
+	if b.tracer != nil {
+		b.tracer.traceMessage('F', int32(5+len(msgBody)), msg)
+	}
+
+	return msg, nil
 }
 
 // SetAuthType sets the authentication type in the backend.
@@ -184,11 +235,11 @@ func (b *Backend) Receive() (FrontendMessage, error) {
 // contextual identification of FrontendMessages. For example, in the
 // PG message flow documentation for PasswordMessage:
 //
-// 		Byte1('p')
+//			Byte1('p')
 //
-//      Identifies the message as a password response. Note that this is also used for
-//		GSSAPI, SSPI and SASL response messages. The exact message type can be deduced from
-//		the context.
+//	     Identifies the message as a password response. Note that this is also used for
+//			GSSAPI, SSPI and SASL response messages. The exact message type can be deduced from
+//			the context.
 //
 // Since the Frontend does not know about the state of a backend, it is important
 // to call SetAuthType() after an authentication request is received by the Frontend.

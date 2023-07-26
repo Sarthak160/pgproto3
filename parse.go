@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 
-	"github.com/jackc/pgio"
+	"github.com/sarthak160/postgres-wire-parser/internal/pgio"
 )
 
 type Parse struct {
@@ -53,6 +53,7 @@ func (dst *Parse) Decode(src []byte) error {
 
 // Encode encodes src into dst. dst will include the 1 byte message type identifier and the 4 byte message length.
 func (src *Parse) Encode(dst []byte) []byte {
+	println("parse.go: Parse.Encode()", string(dst))
 	dst = append(dst, 'P')
 	sp := len(dst)
 	dst = pgio.AppendInt32(dst, -1)
