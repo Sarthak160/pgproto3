@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/jackc/pgio"
+	"github.com/sarthak160/postgres-wire-parser/internal/pgio"
 )
 
 type Query struct {

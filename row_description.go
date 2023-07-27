@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 
-	"github.com/jackc/pgio"
+	"github.com/sarthak160/postgres-wire-parser/internal/pgio"
 )
 
 const (

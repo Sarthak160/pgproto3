@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/jackc/pgio"
+	"github.com/sarthak160/postgres-wire-parser/internal/pgio"
 )
 
 // AuthenticationSASL is a message sent from the backend indicating that SASL authentication is required.
@@ -36,10 +36,11 @@ func (dst *AuthenticationSASL) Decode(src []byte) error {
 	authMechanisms := src[4:]
 	for len(authMechanisms) > 1 {
 		idx := bytes.IndexByte(authMechanisms, 0)
-		if idx > 0 {
-			dst.AuthMechanisms = append(dst.AuthMechanisms, string(authMechanisms[:idx]))
-			authMechanisms = authMechanisms[idx+1:]
+		if idx == -1 {
+			return &invalidMessageFormatErr{messageType: "AuthenticationSASL", details: "unterminated string"}
 		}
+		dst.AuthMechanisms = append(dst.AuthMechanisms, string(authMechanisms[:idx]))
+		authMechanisms = authMechanisms[idx+1:]
 	}
 
 	return nil

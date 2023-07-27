@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/jackc/pgio"
+	"github.com/sarthak160/postgres-wire-parser/internal/pgio"
 )
 
 // AuthenticationMD5Password is a message sent from the backend indicating that an MD5 hashed password is required.

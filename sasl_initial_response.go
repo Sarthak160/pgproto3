@@ -2,10 +2,11 @@ package pgproto3
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 
-	"github.com/jackc/pgio"
+	"github.com/sarthak160/postgres-wire-parser/internal/pgio"
 )
 
 type SASLInitialResponse struct {
@@ -82,6 +83,12 @@ func (dst *SASLInitialResponse) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	dst.AuthMechanism = msg.AuthMechanism
-	dst.Data = []byte(msg.Data)
+	if msg.Data != "" {
+		decoded, err := hex.DecodeString(msg.Data)
+		if err != nil {
+			return err
+		}
+		dst.Data = decoded
+	}
 	return nil
 }

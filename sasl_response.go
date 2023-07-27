@@ -1,9 +1,10 @@
 package pgproto3
 
 import (
+	"encoding/hex"
 	"encoding/json"
 
-	"github.com/jackc/pgio"
+	"github.com/sarthak160/postgres-wire-parser/internal/pgio"
 )
 
 type SASLResponse struct {
@@ -49,6 +50,12 @@ func (dst *SASLResponse) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &msg); err != nil {
 		return err
 	}
-	dst.Data = []byte(msg.Data)
+	if msg.Data != "" {
+		decoded, err := hex.DecodeString(msg.Data)
+		if err != nil {
+			return err
+		}
+		dst.Data = decoded
+	}
 	return nil
 }
